@@ -660,9 +660,78 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 500;
 }
 
+.todo-item__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
 .todo-item__desc {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
+}
+
+/* --- Priority badge --- */
+.todo-priority-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.todo-priority-badge--hoog {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.todo-priority-badge--laag {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+/* --- Priority selector (form) --- */
+.priority-selector {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.priority-option {
+  flex: 1;
+  padding: 6px 0;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-input);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+
+.priority-option:hover {
+  border-color: var(--color-primary);
+}
+
+.priority-option--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-lighter);
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.priority-option--hoog.priority-option--active {
+  border-color: var(--color-danger);
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.priority-option--laag.priority-option--active {
+  border-color: var(--color-success);
+  background: var(--color-success-light);
+  color: var(--color-success);
 }
 
 /* --- Callback item --- */

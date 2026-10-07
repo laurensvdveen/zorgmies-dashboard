@@ -3,12 +3,26 @@
 import { useState, useEffect, useCallback } from "react";
 
 type LocationId = "regiobar" | "capelle" | "nissewaard";
+type Priority = "hoog" | "normaal" | "laag";
+
+const PRIORITY_ORDER: Record<Priority, number> = {
+  hoog: 0,
+  normaal: 1,
+  laag: 2,
+};
+
+const PRIORITY_META: Record<Priority, { label: string; icon: string }> = {
+  hoog: { label: "Hoog", icon: "🔴" },
+  normaal: { label: "Normaal", icon: "🟡" },
+  laag: { label: "Laag", icon: "🟢" },
+};
 
 interface Todo {
   id: string;
   title: string;
   description: string;
   location: LocationId;
+  priority: Priority;
   done: boolean;
   createdAt: string;
 }
@@ -29,6 +43,7 @@ export default function LocationTodoCard({ location }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<Priority>("normaal");
   const [submitting, setSubmitting] = useState(false);
 
   const meta = LOCATION_META[location];
@@ -38,7 +53,12 @@ export default function LocationTodoCard({ location }: Props) {
       const res = await fetch("/api/todo");
       const data = await res.json();
       const all: Todo[] = data.todos ?? [];
-      setTodos(all.filter((t) => t.location === location));
+      const filtered = all.filter((t) => t.location === location);
+      filtered.sort((a, b) => {
+        if (a.done !== b.done) return a.done ? 1 : -1;
+        return (PRIORITY_ORDER[a.priority ?? "normaal"] ?? 1) - (PRIORITY_ORDER[b.priority ?? "normaal"] ?? 1);
+      });
+      setTodos(filtered);
     } catch {
       console.error("Taken laden mislukt");
     } finally {
@@ -63,12 +83,14 @@ export default function LocationTodoCard({ location }: Props) {
           title: title.trim(),
           description: description.trim(),
           location,
+          priority,
         }),
       });
 
       if (res.ok) {
         setTitle("");
         setDescription("");
+        setPriority("normaal");
         setShowForm(false);
         await loadTodos();
       }
@@ -147,7 +169,14 @@ export default function LocationTodoCard({ location }: Props) {
                 aria-label={`Markeer "${todo.title}" als ${todo.done ? "niet klaar" : "klaar"}`}
               />
               <div className="todo-item__content">
-                <div className="todo-item__title">{todo.title}</div>
+                <div className="todo-item__title-row">
+                  <span className="todo-item__title">{todo.title}</span>
+                  {(todo.priority ?? "normaal") !== "normaal" && (
+                    <span className={`todo-priority-badge todo-priority-badge--${todo.priority}`}>
+                      {PRIORITY_META[todo.priority]?.icon} {PRIORITY_META[todo.priority]?.label}
+                    </span>
+                  )}
+                </div>
                 {todo.description && (
                   <div className="todo-item__desc">{todo.description}</div>
                 )}
@@ -192,6 +221,21 @@ export default function LocationTodoCard({ location }: Props) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optionele toelichting"
             />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Prioriteit</label>
+            <div className="priority-selector">
+              {(["hoog", "normaal", "laag"] as Priority[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`priority-option priority-option--${p} ${priority === p ? "priority-option--active" : ""}`}
+                  onClick={() => setPriority(p)}
+                >
+                  {PRIORITY_META[p].icon} {PRIORITY_META[p].label}
+                </button>
+              ))}
+            </div>
           </div>
           <div style={{ display: "flex", gap: "var(--space-sm)" }}>
             <button

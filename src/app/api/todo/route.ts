@@ -16,7 +16,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, description = "", location } = body;
+    const { title, description = "", location, priority = "normaal" } = body;
 
     if (!title || !location) {
       return NextResponse.json(
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const todo = await addTodo({ title, description, location });
+    const todo = await addTodo({ title, description, location, priority });
     return NextResponse.json({ todo }, { status: 201 });
   } catch (error) {
     console.error("Todo POST error:", error);

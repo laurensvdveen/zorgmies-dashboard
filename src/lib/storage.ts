@@ -9,11 +9,14 @@ export type LocationId = "regiobar" | "capelle" | "nissewaard";
 
 // --- To-do ---
 
+export type Priority = "hoog" | "normaal" | "laag";
+
 export interface Todo {
   id: string;
   title: string;
   description: string;
   location: LocationId;
+  priority: Priority;
   done: boolean;
   createdAt: string;
   updatedAt: string;
@@ -27,7 +30,7 @@ export async function getTodos(): Promise<Todo[]> {
 }
 
 export async function addTodo(
-  data: Pick<Todo, "title" | "description" | "location">
+  data: Pick<Todo, "title" | "description" | "location" | "priority">
 ): Promise<Todo> {
   const todos = await getTodos();
   const todo: Todo = {
@@ -35,6 +38,7 @@ export async function addTodo(
     title: data.title,
     description: data.description,
     location: data.location,
+    priority: data.priority ?? "normaal",
     done: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -46,7 +50,7 @@ export async function addTodo(
 
 export async function updateTodo(
   id: string,
-  updates: Partial<Pick<Todo, "title" | "description" | "location" | "done">>
+  updates: Partial<Pick<Todo, "title" | "description" | "location" | "done" | "priority">>
 ): Promise<Todo | null> {
   const todos = await getTodos();
   const idx = todos.findIndex((t) => t.id === id);
