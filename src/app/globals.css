@@ -710,6 +710,121 @@ h1, h2, h3, h4, h5, h6 {
   opacity: 0.5;
 }
 
+/* --- Calendar Grid (2-week view) --- */
+.cal-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.cal-grid__week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-xs);
+}
+
+.cal-day {
+  background: var(--color-bg-input);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-day--today {
+  background: var(--color-primary-lighter);
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+.cal-day--weekend {
+  opacity: 0.7;
+}
+
+.cal-day__header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.cal-day__num {
+  font-family: var(--font-heading);
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  line-height: 1;
+}
+
+.cal-day--today .cal-day__num {
+  color: var(--color-primary-dark);
+}
+
+.cal-day__name {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.cal-day__events {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cal-day__empty {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+  padding-top: var(--space-xs);
+}
+
+.cal-event {
+  border-left: 3px solid var(--color-primary);
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.7);
+  cursor: default;
+}
+
+.cal-event--regiobar {
+  border-left-color: var(--color-loc-regiobar);
+  background: var(--color-loc-regiobar-light);
+}
+
+.cal-event--capelle {
+  border-left-color: var(--color-loc-capelle);
+  background: var(--color-loc-capelle-light);
+}
+
+.cal-event--nissewaard {
+  border-left-color: var(--color-loc-nissewaard);
+  background: var(--color-loc-nissewaard-light);
+}
+
+.cal-event__time {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  line-height: 1.3;
+}
+
+.cal-event__title {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* --- Intake item --- */
 .intake-item {
   padding: var(--space-md);
@@ -908,6 +1023,15 @@ h1, h2, h3, h4, h5, h6 {
   .dashboard__row--bottom {
     grid-template-columns: 1fr;
   }
+
+  .cal-grid__week {
+    grid-template-columns: repeat(7, 1fr);
+  }
+
+  .cal-day {
+    min-height: 80px;
+    padding: var(--space-xs);
+  }
 }
 
 @media (max-width: 768px) {
@@ -948,6 +1072,14 @@ h1, h2, h3, h4, h5, h6 {
 
   .card__body {
     max-height: none;
+  }
+
+  .cal-grid__week {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .cal-day {
+    min-height: 60px;
   }
 }
 

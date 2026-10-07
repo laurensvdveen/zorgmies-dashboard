@@ -131,7 +131,7 @@ export interface CalendarEvent {
 }
 
 /**
- * Fetch calendar events for today and tomorrow for a location
+ * Fetch calendar events for the coming 14 days for a location
  */
 export async function fetchCalendarEvents(
   loc: LocationConfig
@@ -140,11 +140,11 @@ export async function fetchCalendarEvents(
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
 
-  const endOfTomorrow = new Date(startOfToday);
-  endOfTomorrow.setDate(endOfTomorrow.getDate() + 2);
+  const endDate = new Date(startOfToday);
+  endDate.setDate(endDate.getDate() + 14);
 
   const startISO = startOfToday.toISOString();
-  const endISO = endOfTomorrow.toISOString();
+  const endISO = endDate.toISOString();
 
   try {
     const data = (await graphRequest(
