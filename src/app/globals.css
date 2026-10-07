@@ -124,7 +124,26 @@ h1, h2, h3, h4, h5, h6 {
   z-index: 100;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-md);
+}
+
+.header__left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.header__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.header__divider {
+  width: 1px;
+  height: 32px;
+  background: var(--color-border);
 }
 
 .header__logo {
@@ -146,14 +165,87 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 400;
 }
 
-/* --- Dashboard Grid --- */
+/* --- Header Clock (compact) --- */
+.header-clock {
+  text-align: right;
+}
+
+.header-clock__time {
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  line-height: 1.2;
+}
+
+.header-clock__date {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* --- Header Weather (compact) --- */
+.header-weather {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.header-weather__icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.header-weather__info {
+  display: flex;
+  flex-direction: column;
+}
+
+.header-weather__temp {
+  font-family: var(--font-heading);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  line-height: 1.2;
+}
+
+.header-weather__desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/* --- Dashboard Layout --- */
 .dashboard {
   padding: var(--space-lg);
   max-width: 1480px;
   margin: 0 auto;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: var(--space-lg);
+}
+
+.dashboard__row {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.dashboard__row--todos {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.dashboard__row--full {
+  grid-template-columns: 1fr;
+}
+
+.dashboard__row--bottom {
+  grid-template-columns: 55fr 45fr;
+}
+
+/* --- Location Todo Card --- */
+.location-todo-card {
+  border-left: 4px solid var(--color-primary);
 }
 
 /* --- Card --- */
@@ -809,20 +901,32 @@ h1, h2, h3, h4, h5, h6 {
 
 /* --- Responsive --- */
 @media (max-width: 1200px) {
-  .dashboard {
+  .dashboard__row--todos {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard__row--bottom {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 768px) {
   .dashboard {
-    grid-template-columns: 1fr;
     padding: var(--space-md);
     gap: var(--space-md);
   }
 
+  .dashboard__row--todos {
+    grid-template-columns: 1fr;
+  }
+
   .header {
     padding: var(--space-sm) var(--space-md);
+    flex-wrap: wrap;
+  }
+
+  .header__right {
+    gap: var(--space-md);
   }
 
   .header__logo {
@@ -834,8 +938,8 @@ h1, h2, h3, h4, h5, h6 {
     font-size: var(--font-size-lg);
   }
 
-  .clock__time {
-    font-size: var(--font-size-2xl);
+  .header-clock__time {
+    font-size: var(--font-size-lg);
   }
 
   .form-row {

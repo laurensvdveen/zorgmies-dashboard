@@ -1,30 +1,30 @@
 import Header from "@/components/Header";
-import Clock from "@/components/Clock";
-import WeatherCard from "@/components/WeatherCard";
+import LocationTodoCard from "@/components/LocationTodoCard";
 import CalendarCard from "@/components/CalendarCard";
-import MailCard from "@/components/MailCard";
-import TodoList from "@/components/TodoList";
-import CallbackList from "@/components/CallbackList";
 import IntakeForm from "@/components/IntakeForm";
+import MailCard from "@/components/MailCard";
 
 export default function Home() {
   return (
     <>
       <Header />
       <main className="dashboard">
-        {/* Row 1: Quick info */}
-        <Clock />
-        <WeatherCard />
-        <CalendarCard />
+        {/* Row 1: Three location todo cards */}
+        <div className="dashboard__row dashboard__row--todos">
+          <LocationTodoCard location="regiobar" />
+          <LocationTodoCard location="capelle" />
+          <LocationTodoCard location="nissewaard" />
+        </div>
 
-        {/* Row 2: Communication & tasks */}
-        <MailCard />
-        <TodoList />
-        <CallbackList />
+        {/* Row 2: Agenda (full width) */}
+        <div className="dashboard__row dashboard__row--full">
+          <CalendarCard />
+        </div>
 
-        {/* Row 3: Intake (full width) */}
-        <div style={{ gridColumn: "1 / -1" }}>
+        {/* Row 3: Intakes + Mail */}
+        <div className="dashboard__row dashboard__row--bottom">
           <IntakeForm />
+          <MailCard />
         </div>
       </main>
     </>
