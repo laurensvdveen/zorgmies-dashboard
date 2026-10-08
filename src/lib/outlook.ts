@@ -1,5 +1,7 @@
 // Microsoft Graph API helpers for 3 ZorgMies locations
-// Each location has its own Azure AD app registration (client credentials flow)
+// Delegated flow: authorization code + refresh tokens stored in Vercel KV
+
+import { kv } from "@vercel/kv";
 
 export type LocationId = "regiobar" | "capelle" | "nissewaard";
 
@@ -7,10 +9,6 @@ export interface LocationConfig {
   id: LocationId;
   label: string;
   shortLabel: string;
-  tenantId: string;
-  clientId: string;
-  clientSecret: string;
-  userEmail: string;
   cssClass: string;
 }
 
@@ -19,84 +17,116 @@ export const LOCATIONS: LocationConfig[] = [
     id: "regiobar",
     label: "Regio Bar",
     shortLabel: "RB",
-    tenantId: process.env.AZURE_TENANT_ID_REGIOBAR ?? "",
-    clientId: process.env.AZURE_CLIENT_ID_REGIOBAR ?? "",
-    clientSecret: process.env.AZURE_CLIENT_SECRET_REGIOBAR ?? "",
-    userEmail: process.env.OUTLOOK_EMAIL_REGIOBAR ?? "",
     cssClass: "regiobar",
   },
   {
     id: "capelle",
     label: "Capelle & PA",
     shortLabel: "CA",
-    tenantId: process.env.AZURE_TENANT_ID_CAPELLE ?? "",
-    clientId: process.env.AZURE_CLIENT_ID_CAPELLE ?? "",
-    clientSecret: process.env.AZURE_CLIENT_SECRET_CAPELLE ?? "",
-    userEmail: process.env.OUTLOOK_EMAIL_CAPELLE ?? "",
     cssClass: "capelle",
   },
   {
     id: "nissewaard",
     label: "Nissewaard & HV",
     shortLabel: "NW",
-    tenantId: process.env.AZURE_TENANT_ID_NISSEWAARD ?? "",
-    clientId: process.env.AZURE_CLIENT_ID_NISSEWAARD ?? "",
-    clientSecret: process.env.AZURE_CLIENT_SECRET_NISSEWAARD ?? "",
-    userEmail: process.env.OUTLOOK_EMAIL_NISSEWAARD ?? "",
     cssClass: "nissewaard",
   },
 ];
 
-// Token cache (in-memory, per cold start)
-const tokenCache: Record<string, { token: string; expiresAt: number }> = {};
+// --- Token management ---
+
+interface StoredTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number; // epoch ms
+  userEmail: string;
+  userName: string;
+  connectedAt: string;
+}
+
+const TENANT_ID = process.env.AZURE_TENANT_ID ?? "";
+const CLIENT_ID = process.env.AZURE_CLIENT_ID ?? "";
+const CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET ?? "";
 
 /**
- * Get an access token using client credentials flow
+ * Get a valid access token for a location.
+ * If the stored token is expired, refreshes it automatically.
+ * Returns null if the location is not connected.
  */
-async function getAccessToken(loc: LocationConfig): Promise<string> {
-  const cacheKey = loc.id;
-  const cached = tokenCache[cacheKey];
-  if (cached && cached.expiresAt > Date.now() + 60_000) {
-    return cached.token;
+async function getAccessToken(locationId: LocationId): Promise<string | null> {
+  const kvKey = `zorgmies:outlook:${locationId}:tokens`;
+  const stored = await kv.get<StoredTokens>(kvKey);
+
+  if (!stored) {
+    return null; // Location not connected
   }
 
-  const tokenUrl = `https://login.microsoftonline.com/${loc.tenantId}/oauth2/v2.0/token`;
-  const body = new URLSearchParams({
-    client_id: loc.clientId,
-    client_secret: loc.clientSecret,
-    scope: "https://graph.microsoft.com/.default",
-    grant_type: "client_credentials",
-  });
-
-  const res = await fetch(tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Token error for ${loc.label}: ${err}`);
+  // If token is still valid (with 2-minute buffer), use it
+  if (stored.expiresAt > Date.now() + 120_000) {
+    return stored.accessToken;
   }
 
-  const data = await res.json();
-  tokenCache[cacheKey] = {
-    token: data.access_token,
-    expiresAt: Date.now() + data.expires_in * 1000,
-  };
+  // Token expired — refresh it
+  try {
+    const tokenUrl = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`;
+    const body = new URLSearchParams({
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      refresh_token: stored.refreshToken,
+      grant_type: "refresh_token",
+      scope:
+        "openid profile email offline_access Mail.Read Calendars.Read User.Read",
+    });
 
-  return data.access_token;
+    const res = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error(`Token refresh failed for ${locationId}:`, err);
+      // If refresh token is revoked, remove stored tokens
+      if (res.status === 400 || res.status === 401) {
+        await kv.del(kvKey);
+      }
+      return null;
+    }
+
+    const data = await res.json();
+
+    // Update stored tokens (refresh token may rotate)
+    const updatedTokens: StoredTokens = {
+      ...stored,
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token ?? stored.refreshToken,
+      expiresAt: Date.now() + data.expires_in * 1000,
+    };
+
+    await kv.set(kvKey, updatedTokens);
+    return data.access_token;
+  } catch (error) {
+    console.error(`Token refresh error for ${locationId}:`, error);
+    return null;
+  }
 }
 
 /**
- * Make an authenticated Graph API request
+ * Make an authenticated Graph API request using delegated permissions.
+ * With delegated flow, we use /me/... instead of /users/{email}/...
  */
 async function graphRequest(
-  loc: LocationConfig,
+  locationId: LocationId,
   path: string,
   params?: Record<string, string>
 ): Promise<unknown> {
-  const token = await getAccessToken(loc);
+  const token = await getAccessToken(locationId);
+
+  if (!token) {
+    throw new Error(`Niet gekoppeld: ${locationId}`);
+  }
+
   const url = new URL(`https://graph.microsoft.com/v1.0${path}`);
   if (params) {
     for (const [key, value] of Object.entries(params)) {
@@ -110,15 +140,26 @@ async function graphRequest(
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Graph API error (${loc.label}): ${res.status} ${err}`);
+    throw new Error(`Graph API error (${locationId}): ${res.status} ${err}`);
   }
 
   return res.json();
 }
 
 /**
- * Calendar events interface
+ * Check if a location is connected (has valid tokens)
  */
+export async function isLocationConnected(
+  locationId: LocationId
+): Promise<boolean> {
+  const stored = await kv.get<StoredTokens>(
+    `zorgmies:outlook:${locationId}:tokens`
+  );
+  return stored !== null;
+}
+
+// --- Calendar ---
+
 export interface CalendarEvent {
   id: string;
   subject: string;
@@ -131,7 +172,8 @@ export interface CalendarEvent {
 }
 
 /**
- * Fetch calendar events for the coming 14 days for a location
+ * Fetch calendar events for the coming 14 days for a location.
+ * Uses /me/calendarView (delegated).
  */
 export async function fetchCalendarEvents(
   loc: LocationConfig
@@ -147,17 +189,13 @@ export async function fetchCalendarEvents(
   const endISO = endDate.toISOString();
 
   try {
-    const data = (await graphRequest(
-      loc,
-      `/users/${loc.userEmail}/calendarView`,
-      {
-        startDateTime: startISO,
-        endDateTime: endISO,
-        $orderby: "start/dateTime",
-        $top: "50",
-        $select: "id,subject,start,end,isAllDay,location",
-      }
-    )) as { value: Array<Record<string, unknown>> };
+    const data = (await graphRequest(loc.id, `/me/calendarView`, {
+      startDateTime: startISO,
+      endDateTime: endISO,
+      $orderby: "start/dateTime",
+      $top: "50",
+      $select: "id,subject,start,end,isAllDay,location",
+    })) as { value: Array<Record<string, unknown>> };
 
     return data.value.map((evt) => ({
       id: evt.id as string,
@@ -175,9 +213,8 @@ export async function fetchCalendarEvents(
   }
 }
 
-/**
- * Mail message interface
- */
+// --- Mail ---
+
 export interface MailMessage {
   id: string;
   subject: string;
@@ -190,15 +227,16 @@ export interface MailMessage {
 }
 
 /**
- * Fetch recent inbox messages for a location
+ * Fetch recent inbox messages for a location.
+ * Uses /me/mailFolders/inbox/messages (delegated).
  */
 export async function fetchMail(
   loc: LocationConfig
 ): Promise<{ messages: MailMessage[]; unreadCount: number }> {
   try {
     const data = (await graphRequest(
-      loc,
-      `/users/${loc.userEmail}/mailFolders/inbox/messages`,
+      loc.id,
+      `/me/mailFolders/inbox/messages`,
       {
         $top: "10",
         $orderby: "receivedDateTime desc",
@@ -224,8 +262,8 @@ export async function fetchMail(
 
     // Get unread count
     const folderData = (await graphRequest(
-      loc,
-      `/users/${loc.userEmail}/mailFolders/inbox`,
+      loc.id,
+      `/me/mailFolders/inbox`,
       { $select: "unreadItemCount" }
     )) as { unreadItemCount: number };
 
@@ -239,12 +277,26 @@ export async function fetchMail(
   }
 }
 
+// --- Aggregated fetchers ---
+
 /**
- * Fetch all locations' calendar events merged and sorted
+ * Fetch all connected locations' calendar events merged and sorted
  */
 export async function fetchAllCalendarEvents(): Promise<CalendarEvent[]> {
+  // Only fetch for connected locations
+  const connectedLocations: LocationConfig[] = [];
+  for (const loc of LOCATIONS) {
+    if (await isLocationConnected(loc.id)) {
+      connectedLocations.push(loc);
+    }
+  }
+
+  if (connectedLocations.length === 0) {
+    return [];
+  }
+
   const results = await Promise.allSettled(
-    LOCATIONS.map((loc) => fetchCalendarEvents(loc))
+    connectedLocations.map((loc) => fetchCalendarEvents(loc))
   );
 
   const allEvents: CalendarEvent[] = [];
@@ -260,16 +312,12 @@ export async function fetchAllCalendarEvents(): Promise<CalendarEvent[]> {
 }
 
 /**
- * Fetch all locations' mail
+ * Fetch all connected locations' mail
  */
 export async function fetchAllMail(): Promise<{
   messages: MailMessage[];
   unreadCounts: Record<LocationId, number>;
 }> {
-  const results = await Promise.allSettled(
-    LOCATIONS.map((loc) => fetchMail(loc))
-  );
-
   const allMessages: MailMessage[] = [];
   const unreadCounts: Record<LocationId, number> = {
     regiobar: 0,
@@ -277,7 +325,23 @@ export async function fetchAllMail(): Promise<{
     nissewaard: 0,
   };
 
-  LOCATIONS.forEach((loc, i) => {
+  // Only fetch for connected locations
+  const connectedLocations: LocationConfig[] = [];
+  for (const loc of LOCATIONS) {
+    if (await isLocationConnected(loc.id)) {
+      connectedLocations.push(loc);
+    }
+  }
+
+  if (connectedLocations.length === 0) {
+    return { messages: allMessages, unreadCounts };
+  }
+
+  const results = await Promise.allSettled(
+    connectedLocations.map((loc) => fetchMail(loc))
+  );
+
+  connectedLocations.forEach((loc, i) => {
     const result = results[i];
     if (result.status === "fulfilled") {
       allMessages.push(...result.value.messages);
