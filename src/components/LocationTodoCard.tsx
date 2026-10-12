@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 type LocationId = "regiobar" | "capelle" | "nissewaard";
 type Priority = "hoog" | "normaal" | "laag";
@@ -47,6 +47,51 @@ export default function LocationTodoCard({ location }: Props) {
   const [submitting, setSubmitting] = useState(false);
 
   const meta = LOCATION_META[location];
+  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
+  const completeSoundRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    // Create completion sound (short pleasant chime, Outlook-style)
+    const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    completeSoundRef.current = null; // We'll use Web Audio API instead
+    // Store the context for later
+    (completeSoundRef as unknown as { current: AudioContext }).current = audioCtx;
+    return () => { audioCtx.close(); };
+  }, []);
+
+  function playCompleteSound() {
+    try {
+      const ctx = (completeSoundRef as unknown as { current: AudioContext }).current;
+      if (!ctx || ctx.state === "closed") return;
+      if (ctx.state === "suspended") ctx.resume();
+
+      // Two-tone chime like Outlook task completion
+      const now = ctx.currentTime;
+
+      // First tone (higher)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(880, now);
+      gain1.gain.setValueAtTime(0.15, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc1.connect(gain1).connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.2);
+
+      // Second tone (even higher, slightly delayed)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(1174.66, now + 0.1);
+      gain2.gain.setValueAtTime(0, now);
+      gain2.gain.setValueAtTime(0.15, now + 0.1);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc2.connect(gain2).connect(ctx.destination);
+      osc2.start(now + 0.1);
+      osc2.stop(now + 0.35);
+    } catch { /* Audio not available */ }
+  }
 
   const loadTodos = useCallback(async () => {
     try {
@@ -102,17 +147,48 @@ export default function LocationTodoCard({ location }: Props) {
   }
 
   async function toggleDone(id: string, done: boolean) {
-    try {
-      await fetch("/api/todo", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, done: !done }),
-      });
-      setTodos((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, done: !done } : t))
-      );
-    } catch {
-      console.error("Taak bijwerken mislukt");
+    // If completing (not un-completing), play sound and animate
+    if (!done) {
+      playCompleteSound();
+      setCompletingIds((prev) => new Set(prev).add(id));
+
+      // Wait for animation, then update state and remove from view
+      setTimeout(async () => {
+        try {
+          await fetch("/api/todo", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, done: true }),
+          });
+          setTodos((prev) => prev.filter((t) => t.id !== id));
+          setCompletingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        } catch {
+          console.error("Taak bijwerken mislukt");
+          setCompletingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }
+      }, 600);
+    } else {
+      // Un-completing: just toggle back
+      try {
+        await fetch("/api/todo", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, done: false }),
+        });
+        setTodos((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, done: false } : t))
+        );
+      } catch {
+        console.error("Taak bijwerken mislukt");
+      }
     }
   }
 
@@ -159,7 +235,7 @@ export default function LocationTodoCard({ location }: Props) {
           todos.map((todo) => (
             <div
               key={todo.id}
-              className={`todo-item ${todo.done ? "todo-item--done" : ""}`}
+              className={`todo-item ${todo.done ? "todo-item--done" : ""} ${completingIds.has(todo.id) ? "todo-item--completing" : ""}`}
             >
               <input
                 type="checkbox"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 type LocationId = "regiobar" | "capelle" | "nissewaard";
 
@@ -42,6 +42,42 @@ export default function CallbackList() {
   const [note, setNote] = useState("");
   const [location, setLocation] = useState<LocationId>("regiobar");
   const [submitting, setSubmitting] = useState(false);
+  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    audioCtxRef.current = ctx;
+    return () => { ctx.close(); };
+  }, []);
+
+  function playCompleteSound() {
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx || ctx.state === "closed") return;
+      if (ctx.state === "suspended") ctx.resume();
+      const now = ctx.currentTime;
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(880, now);
+      gain1.gain.setValueAtTime(0.15, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc1.connect(gain1).connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.2);
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(1174.66, now + 0.1);
+      gain2.gain.setValueAtTime(0, now);
+      gain2.gain.setValueAtTime(0.15, now + 0.1);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc2.connect(gain2).connect(ctx.destination);
+      osc2.start(now + 0.1);
+      osc2.stop(now + 0.35);
+    } catch { /* Audio not available */ }
+  }
 
   async function loadCallbacks() {
     try {
@@ -93,17 +129,42 @@ export default function CallbackList() {
   }
 
   async function toggleDone(id: string, done: boolean) {
-    try {
-      await fetch("/api/callback", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, done: !done }),
-      });
-      setCallbacks((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, done: !done } : c))
-      );
-    } catch {
-      console.error("Terugbelafspraak bijwerken mislukt");
+    if (!done) {
+      playCompleteSound();
+      setCompletingIds((prev) => new Set(prev).add(id));
+      setTimeout(async () => {
+        try {
+          await fetch("/api/callback", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, done: true }),
+          });
+          setCallbacks((prev) =>
+            prev.map((c) => (c.id === id ? { ...c, done: true } : c))
+          );
+        } catch {
+          console.error("Terugbelafspraak bijwerken mislukt");
+        } finally {
+          setCompletingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }
+      }, 600);
+    } else {
+      try {
+        await fetch("/api/callback", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, done: false }),
+        });
+        setCallbacks((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, done: false } : c))
+        );
+      } catch {
+        console.error("Terugbelafspraak bijwerken mislukt");
+      }
     }
   }
 
@@ -139,7 +200,7 @@ export default function CallbackList() {
           <>
             <div className="section-divider">Openstaand</div>
             {open.map((cb) => (
-              <div key={cb.id} className="callback-item">
+              <div key={cb.id} className={`callback-item ${completingIds.has(cb.id) ? "callback-item--completing" : ""}`}>
                 <div className="callback-item__top">
                   <input
                     type="checkbox"
