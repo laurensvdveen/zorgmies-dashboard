@@ -109,7 +109,7 @@ export async function addCallback(
 
 export async function updateCallback(
   id: string,
-  updates: Partial<Pick<Callback, "done">>
+  updates: Partial<Pick<Callback, "name" | "phone" | "dateTime" | "note" | "location" | "done">>
 ): Promise<Callback | null> {
   const callbacks = await getCallbacks();
   const idx = callbacks.findIndex((c) => c.id === id);
@@ -171,7 +171,7 @@ export async function addIntake(
 
 export async function updateIntake(
   id: string,
-  updates: Partial<Pick<Intake, "status" | "notes">>
+  updates: Partial<Pick<Intake, "clientName" | "phone" | "address" | "careType" | "urgency" | "location" | "notes" | "status">>
 ): Promise<Intake | null> {
   const intakes = await getIntakes();
   const idx = intakes.findIndex((i) => i.id === id);

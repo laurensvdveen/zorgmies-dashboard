@@ -14,10 +14,10 @@ interface Callback {
   done: boolean;
 }
 
-const LOCATION_OPTIONS: { id: LocationId; label: string }[] = [
-  { id: "regiobar", label: "Regio Bar" },
-  { id: "capelle", label: "Capelle & PA" },
-  { id: "nissewaard", label: "Nissewaard & HV" },
+const LOCATION_OPTIONS: { id: LocationId; label: string; color: string }[] = [
+  { id: "regiobar", label: "Regio Bar", color: "var(--color-loc-regiobar)" },
+  { id: "capelle", label: "Capelle & PA", color: "var(--color-loc-capelle)" },
+  { id: "nissewaard", label: "Nissewaard & HV", color: "var(--color-loc-nissewaard)" },
 ];
 
 function formatDateTime(iso: string): string {
@@ -32,6 +32,13 @@ function formatDateTime(iso: string): string {
   });
 }
 
+function toLocalDateTimeValue(iso: string): string {
+  const d = new Date(iso);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
 export default function CallbackList() {
   const [callbacks, setCallbacks] = useState<Callback[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +51,14 @@ export default function CallbackList() {
   const [submitting, setSubmitting] = useState(false);
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
   const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editDateTime, setEditDateTime] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const [editLocation, setEditLocation] = useState<LocationId>("regiobar");
 
   useEffect(() => {
     const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
@@ -99,7 +114,6 @@ export default function CallbackList() {
     e.preventDefault();
     if (!name.trim() || !phone.trim() || !dateTime) return;
     setSubmitting(true);
-
     try {
       const res = await fetch("/api/callback", {
         method: "POST",
@@ -112,7 +126,6 @@ export default function CallbackList() {
           location,
         }),
       });
-
       if (res.ok) {
         setName("");
         setPhone("");
@@ -125,6 +138,37 @@ export default function CallbackList() {
       console.error("Terugbelafspraak aanmaken mislukt");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function startEdit(cb: Callback) {
+    setEditingId(cb.id);
+    setEditName(cb.name);
+    setEditPhone(cb.phone);
+    setEditDateTime(toLocalDateTimeValue(cb.dateTime));
+    setEditNote(cb.note);
+    setEditLocation(cb.location);
+  }
+
+  async function handleEditSave(id: string) {
+    if (!editName.trim() || !editPhone.trim() || !editDateTime) return;
+    try {
+      await fetch("/api/callback", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          name: editName.trim(),
+          phone: editPhone.trim(),
+          dateTime: new Date(editDateTime).toISOString(),
+          note: editNote.trim(),
+          location: editLocation,
+        }),
+      });
+      setEditingId(null);
+      await loadCallbacks();
+    } catch {
+      console.error("Terugbelafspraak bijwerken mislukt");
     }
   }
 
@@ -171,6 +215,88 @@ export default function CallbackList() {
   const open = callbacks.filter((c) => !c.done);
   const done = callbacks.filter((c) => c.done);
 
+  // Group open callbacks by location
+  const groupedByLocation = LOCATION_OPTIONS.map((loc) => ({
+    ...loc,
+    items: open.filter((c) => c.location === loc.id),
+  })).filter((g) => g.items.length > 0);
+
+  function renderCallbackItem(cb: Callback, isDone: boolean) {
+    if (editingId === cb.id) {
+      return (
+        <div key={cb.id} className="inline-edit">
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Naam</label>
+              <input type="text" className="form-input" value={editName} onChange={(e) => setEditName(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Telefoon</label>
+              <input type="tel" className="form-input" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Datum/tijd</label>
+              <input type="datetime-local" className="form-input" value={editDateTime} onChange={(e) => setEditDateTime(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Vestiging</label>
+              <select className="form-select" value={editLocation} onChange={(e) => setEditLocation(e.target.value as LocationId)}>
+                {LOCATION_OPTIONS.map((loc) => (
+                  <option key={loc.id} value={loc.id}>{loc.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Notitie</label>
+            <textarea className="form-textarea" value={editNote} onChange={(e) => setEditNote(e.target.value)} rows={2} />
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+            <button className="btn btn--primary btn--sm" onClick={() => handleEditSave(cb.id)}>Opslaan</button>
+            <button className="btn btn--secondary btn--sm" onClick={() => setEditingId(null)}>Annuleren</button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={cb.id} className={`callback-item ${isDone ? "callback-item--done" : ""} ${completingIds.has(cb.id) ? "callback-item--completing" : ""}`}>
+        <div className="callback-item__top">
+          <input
+            type="checkbox"
+            className="todo-checkbox"
+            checked={isDone}
+            onChange={() => toggleDone(cb.id, cb.done)}
+            aria-label={`Markeer terugbelafspraak ${cb.name} als ${isDone ? "openstaand" : "afgerond"}`}
+          />
+          <span className="callback-item__name">{cb.name}</span>
+          <a href={`tel:${cb.phone}`} className="callback-item__phone">{cb.phone}</a>
+          {!isDone && (
+            <button
+              className="btn--icon"
+              onClick={() => startEdit(cb)}
+              aria-label="Bewerk terugbelafspraak"
+              title="Bewerken"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <div className="callback-item__datetime">
+          {formatDateTime(cb.dateTime)}
+        </div>
+        {cb.note && (
+          <div className="callback-item__note">{cb.note}</div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="card">
       <div className="card__header">
@@ -196,62 +322,23 @@ export default function CallbackList() {
           </div>
         )}
 
-        {!loading && open.length > 0 && (
-          <>
-            <div className="section-divider">Openstaand</div>
-            {open.map((cb) => (
-              <div key={cb.id} className={`callback-item ${completingIds.has(cb.id) ? "callback-item--completing" : ""}`}>
-                <div className="callback-item__top">
-                  <input
-                    type="checkbox"
-                    className="todo-checkbox"
-                    checked={false}
-                    onChange={() => toggleDone(cb.id, cb.done)}
-                    aria-label={`Markeer terugbelafspraak ${cb.name} als afgerond`}
-                  />
-                  <span className="callback-item__name">{cb.name}</span>
-                  <a
-                    href={`tel:${cb.phone}`}
-                    className="callback-item__phone"
-                  >
-                    {cb.phone}
-                  </a>
-                  <span className={`loc-badge loc-badge--${cb.location}`}>
-                    {LOCATION_OPTIONS.find((l) => l.id === cb.location)?.label}
-                  </span>
-                </div>
-                <div className="callback-item__datetime">
-                  {formatDateTime(cb.dateTime)}
-                </div>
-                {cb.note && (
-                  <div className="callback-item__note">{cb.note}</div>
-                )}
-              </div>
-            ))}
-          </>
-        )}
+        {/* Open callbacks grouped by region */}
+        {!loading && groupedByLocation.map((group) => (
+          <div key={group.id} className="region-section">
+            <div className="region-section__header">
+              <div className="region-section__dot" style={{ background: group.color }} />
+              <span className="region-section__label">{group.label}</span>
+              <span className="region-section__count">{group.items.length}</span>
+            </div>
+            {group.items.map((cb) => renderCallbackItem(cb, false))}
+          </div>
+        ))}
 
+        {/* Done section */}
         {!loading && done.length > 0 && (
           <>
-            <div className="section-divider">Afgerond</div>
-            {done.slice(0, 5).map((cb) => (
-              <div
-                key={cb.id}
-                className="callback-item callback-item--done"
-              >
-                <div className="callback-item__top">
-                  <input
-                    type="checkbox"
-                    className="todo-checkbox"
-                    checked={true}
-                    onChange={() => toggleDone(cb.id, cb.done)}
-                    aria-label={`Markeer terugbelafspraak ${cb.name} als openstaand`}
-                  />
-                  <span className="callback-item__name">{cb.name}</span>
-                  <span className="callback-item__phone">{cb.phone}</span>
-                </div>
-              </div>
-            ))}
+            <div className="section-divider" style={{ marginTop: "var(--space-md)" }}>Afgerond</div>
+            {done.slice(0, 5).map((cb) => renderCallbackItem(cb, true))}
           </>
         )}
       </div>
@@ -302,9 +389,7 @@ export default function CallbackList() {
                 onChange={(e) => setLocation(e.target.value as LocationId)}
               >
                 {LOCATION_OPTIONS.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.label}
-                  </option>
+                  <option key={loc.id} value={loc.id}>{loc.label}</option>
                 ))}
               </select>
             </div>

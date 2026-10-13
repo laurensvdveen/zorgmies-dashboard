@@ -19,10 +19,10 @@ interface Intake {
   createdAt: string;
 }
 
-const LOCATION_OPTIONS: { id: LocationId; label: string }[] = [
-  { id: "regiobar", label: "Regio Bar" },
-  { id: "capelle", label: "Capelle & PA" },
-  { id: "nissewaard", label: "Nissewaard & HV" },
+const LOCATION_OPTIONS: { id: LocationId; label: string; color: string }[] = [
+  { id: "regiobar", label: "Regio Bar", color: "var(--color-loc-regiobar)" },
+  { id: "capelle", label: "Capelle & PA", color: "var(--color-loc-capelle)" },
+  { id: "nissewaard", label: "Nissewaard & HV", color: "var(--color-loc-nissewaard)" },
 ];
 
 const URGENCY_OPTIONS: { id: Urgency; label: string }[] = [
@@ -74,6 +74,16 @@ export default function IntakeForm() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editClientName, setEditClientName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editCareType, setEditCareType] = useState("");
+  const [editUrgency, setEditUrgency] = useState<Urgency>("normaal");
+  const [editLocation, setEditLocation] = useState<LocationId>("regiobar");
+  const [editNotes, setEditNotes] = useState("");
+
   async function loadIntakes() {
     try {
       const res = await fetch("/api/intake");
@@ -94,7 +104,6 @@ export default function IntakeForm() {
     e.preventDefault();
     if (!clientName.trim() || !phone.trim()) return;
     setSubmitting(true);
-
     try {
       const res = await fetch("/api/intake", {
         method: "POST",
@@ -109,7 +118,6 @@ export default function IntakeForm() {
           notes: notes.trim(),
         }),
       });
-
       if (res.ok) {
         setClientName("");
         setPhone("");
@@ -124,6 +132,41 @@ export default function IntakeForm() {
       console.error("Aanvraag aanmaken mislukt");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function startEdit(intake: Intake) {
+    setEditingId(intake.id);
+    setEditClientName(intake.clientName);
+    setEditPhone(intake.phone);
+    setEditAddress(intake.address);
+    setEditCareType(intake.careType);
+    setEditUrgency(intake.urgency);
+    setEditLocation(intake.location);
+    setEditNotes(intake.notes);
+  }
+
+  async function handleEditSave(id: string) {
+    if (!editClientName.trim() || !editPhone.trim()) return;
+    try {
+      await fetch("/api/intake", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          clientName: editClientName.trim(),
+          phone: editPhone.trim(),
+          address: editAddress.trim(),
+          careType: editCareType,
+          urgency: editUrgency,
+          location: editLocation,
+          notes: editNotes.trim(),
+        }),
+      });
+      setEditingId(null);
+      await loadIntakes();
+    } catch {
+      console.error("Aanvraag bijwerken mislukt");
     }
   }
 
@@ -146,6 +189,125 @@ export default function IntakeForm() {
     filter === "all"
       ? intakes.filter((i) => i.status !== "afgerond")
       : intakes.filter((i) => i.status === filter);
+
+  // Group by location
+  const groupedByLocation = LOCATION_OPTIONS.map((loc) => ({
+    ...loc,
+    items: filtered.filter((i) => i.location === loc.id),
+  })).filter((g) => g.items.length > 0);
+
+  function renderIntakeItem(intake: Intake) {
+    if (editingId === intake.id) {
+      return (
+        <div key={intake.id} className="inline-edit">
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Naam</label>
+              <input type="text" className="form-input" value={editClientName} onChange={(e) => setEditClientName(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Telefoon</label>
+              <input type="tel" className="form-input" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Adres</label>
+            <input type="text" className="form-input" value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Soort zorg</label>
+              <select className="form-select" value={editCareType} onChange={(e) => setEditCareType(e.target.value)}>
+                {CARE_TYPES.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Urgentie</label>
+              <select className="form-select" value={editUrgency} onChange={(e) => setEditUrgency(e.target.value as Urgency)}>
+                {URGENCY_OPTIONS.map((u) => (
+                  <option key={u.id} value={u.id}>{u.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Vestiging</label>
+            <select className="form-select" value={editLocation} onChange={(e) => setEditLocation(e.target.value as LocationId)}>
+              {LOCATION_OPTIONS.map((loc) => (
+                <option key={loc.id} value={loc.id}>{loc.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Notities</label>
+            <textarea className="form-textarea" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} />
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+            <button className="btn btn--primary btn--sm" onClick={() => handleEditSave(intake.id)}>Opslaan</button>
+            <button className="btn btn--secondary btn--sm" onClick={() => setEditingId(null)}>Annuleren</button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={intake.id} className="intake-item">
+        <div className="intake-item__header">
+          <span className="intake-item__name">{intake.clientName}</span>
+          <div style={{ display: "flex", gap: "var(--space-xs)", alignItems: "center" }}>
+            <span className={`intake-item__urgency intake-item__urgency--${intake.urgency}`}>
+              {URGENCY_OPTIONS.find((u) => u.id === intake.urgency)?.label}
+            </span>
+            <button
+              className="btn--icon"
+              onClick={() => startEdit(intake)}
+              aria-label="Bewerk aanvraag"
+              title="Bewerken"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div className="intake-item__detail">
+          <a href={`tel:${intake.phone}`}>{intake.phone}</a>
+          {intake.address && ` · ${intake.address}`}
+        </div>
+        <div className="intake-item__detail">
+          {intake.careType} · {formatDate(intake.createdAt)}
+        </div>
+        {intake.notes && (
+          <div className="intake-item__detail" style={{ fontStyle: "italic" }}>
+            {intake.notes}
+          </div>
+        )}
+        <div className="intake-item__actions">
+          {intake.status === "open" && (
+            <button className="btn btn--secondary btn--sm" onClick={() => updateStatus(intake.id, "in_behandeling")}>
+              In behandeling
+            </button>
+          )}
+          {intake.status === "in_behandeling" && (
+            <button className="btn btn--primary btn--sm" onClick={() => updateStatus(intake.id, "afgerond")}>
+              Afronden
+            </button>
+          )}
+          {intake.status !== "open" && (
+            <button className="btn btn--secondary btn--sm" onClick={() => updateStatus(intake.id, "open")}>
+              Heropenen
+            </button>
+          )}
+          <span className="text-sm text-muted" style={{ marginLeft: "auto" }}>
+            {STATUS_LABELS[intake.status]}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card">
@@ -204,67 +366,16 @@ export default function IntakeForm() {
           </div>
         )}
 
-        {!loading &&
-          filtered.map((intake) => (
-            <div key={intake.id} className="intake-item">
-              <div className="intake-item__header">
-                <span className="intake-item__name">
-                  {intake.clientName}
-                </span>
-                <div style={{ display: "flex", gap: "var(--space-xs)", alignItems: "center" }}>
-                  <span
-                    className={`intake-item__urgency intake-item__urgency--${intake.urgency}`}
-                  >
-                    {URGENCY_OPTIONS.find((u) => u.id === intake.urgency)?.label}
-                  </span>
-                  <span className={`loc-badge loc-badge--${intake.location}`}>
-                    {LOCATION_OPTIONS.find((l) => l.id === intake.location)?.label}
-                  </span>
-                </div>
-              </div>
-              <div className="intake-item__detail">
-                <a href={`tel:${intake.phone}`}>{intake.phone}</a>
-                {intake.address && ` · ${intake.address}`}
-              </div>
-              <div className="intake-item__detail">
-                {intake.careType} · {formatDate(intake.createdAt)}
-              </div>
-              {intake.notes && (
-                <div className="intake-item__detail" style={{ fontStyle: "italic" }}>
-                  {intake.notes}
-                </div>
-              )}
-              <div className="intake-item__actions">
-                {intake.status === "open" && (
-                  <button
-                    className="btn btn--secondary btn--sm"
-                    onClick={() => updateStatus(intake.id, "in_behandeling")}
-                  >
-                    In behandeling
-                  </button>
-                )}
-                {intake.status === "in_behandeling" && (
-                  <button
-                    className="btn btn--primary btn--sm"
-                    onClick={() => updateStatus(intake.id, "afgerond")}
-                  >
-                    Afronden
-                  </button>
-                )}
-                {intake.status !== "open" && (
-                  <button
-                    className="btn btn--secondary btn--sm"
-                    onClick={() => updateStatus(intake.id, "open")}
-                  >
-                    Heropenen
-                  </button>
-                )}
-                <span className="text-sm text-muted" style={{ marginLeft: "auto" }}>
-                  {STATUS_LABELS[intake.status]}
-                </span>
-              </div>
+        {!loading && groupedByLocation.map((group) => (
+          <div key={group.id} className="region-section">
+            <div className="region-section__header">
+              <div className="region-section__dot" style={{ background: group.color }} />
+              <span className="region-section__label">{group.label}</span>
+              <span className="region-section__count">{group.items.length}</span>
             </div>
-          ))}
+            {group.items.map((intake) => renderIntakeItem(intake))}
+          </div>
+        ))}
       </div>
 
       {/* Add form */}
@@ -313,9 +424,7 @@ export default function IntakeForm() {
                 onChange={(e) => setCareType(e.target.value)}
               >
                 {CARE_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
+                  <option key={type} value={type}>{type}</option>
                 ))}
               </select>
             </div>
@@ -327,9 +436,7 @@ export default function IntakeForm() {
                 onChange={(e) => setUrgency(e.target.value as Urgency)}
               >
                 {URGENCY_OPTIONS.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.label}
-                  </option>
+                  <option key={u.id} value={u.id}>{u.label}</option>
                 ))}
               </select>
             </div>
@@ -342,9 +449,7 @@ export default function IntakeForm() {
               onChange={(e) => setLocation(e.target.value as LocationId)}
             >
               {LOCATION_OPTIONS.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.label}
-                </option>
+                <option key={loc.id} value={loc.id}>{loc.label}</option>
               ))}
             </select>
           </div>

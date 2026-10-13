@@ -1,6 +1,5 @@
 import Header from "@/components/Header";
 import LocationTodoCard from "@/components/LocationTodoCard";
-import CalendarCard from "@/components/CalendarCard";
 import IntakeForm from "@/components/IntakeForm";
 import CallbackList from "@/components/CallbackList";
 
@@ -16,12 +15,7 @@ export default function Home() {
           <LocationTodoCard location="nissewaard" />
         </div>
 
-        {/* Row 2: Agenda (full width) */}
-        <div className="dashboard__row dashboard__row--full">
-          <CalendarCard />
-        </div>
-
-        {/* Row 3: Intakes + Belafspraken */}
+        {/* Row 2: Intakes + Belafspraken */}
         <div className="dashboard__row dashboard__row--bottom">
           <IntakeForm />
           <CallbackList />
