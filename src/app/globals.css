@@ -242,8 +242,21 @@ h1, h2, h3, h4, h5, h6 {
   grid-template-columns: 1fr;
 }
 
-.dashboard__row--bottom {
-  grid-template-columns: 55fr 45fr;
+.dashboard__row--intakes {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.dashboard__row--callbacks {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.dashboard__section-title {
+  font-family: var(--font-family);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+  padding: 0;
 }
 
 /* --- Location Todo Card --- */
@@ -1096,8 +1109,12 @@ h1, h2, h3, h4, h5, h6 {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .dashboard__row--bottom {
-    grid-template-columns: 1fr;
+  .dashboard__row--intakes {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard__row--callbacks {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .cal-grid__week {
@@ -1117,6 +1134,14 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .dashboard__row--todos {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard__row--intakes {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard__row--callbacks {
     grid-template-columns: 1fr;
   }
 

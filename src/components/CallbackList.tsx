@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 type LocationId = "regiobar" | "capelle" | "nissewaard";
 
@@ -14,11 +14,11 @@ interface Callback {
   done: boolean;
 }
 
-const LOCATION_OPTIONS: { id: LocationId; label: string; color: string }[] = [
-  { id: "regiobar", label: "Regio Bar", color: "var(--color-loc-regiobar)" },
-  { id: "capelle", label: "Capelle & PA", color: "var(--color-loc-capelle)" },
-  { id: "nissewaard", label: "Nissewaard & HV", color: "var(--color-loc-nissewaard)" },
-];
+const LOCATION_META: Record<LocationId, { label: string; color: string }> = {
+  regiobar: { label: "Regio Bar", color: "var(--color-loc-regiobar)" },
+  capelle: { label: "Capelle & PA", color: "var(--color-loc-capelle)" },
+  nissewaard: { label: "Nissewaard & HV", color: "var(--color-loc-nissewaard)" },
+};
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
@@ -39,7 +39,11 @@ function toLocalDateTimeValue(iso: string): string {
   return local.toISOString().slice(0, 16);
 }
 
-export default function CallbackList() {
+interface Props {
+  location: LocationId;
+}
+
+export default function CallbackList({ location }: Props) {
   const [callbacks, setCallbacks] = useState<Callback[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -47,7 +51,6 @@ export default function CallbackList() {
   const [phone, setPhone] = useState("");
   const [dateTime, setDateTime] = useState("");
   const [note, setNote] = useState("");
-  const [location, setLocation] = useState<LocationId>("regiobar");
   const [submitting, setSubmitting] = useState(false);
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -58,7 +61,8 @@ export default function CallbackList() {
   const [editPhone, setEditPhone] = useState("");
   const [editDateTime, setEditDateTime] = useState("");
   const [editNote, setEditNote] = useState("");
-  const [editLocation, setEditLocation] = useState<LocationId>("regiobar");
+
+  const meta = LOCATION_META[location];
 
   useEffect(() => {
     const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
@@ -94,21 +98,22 @@ export default function CallbackList() {
     } catch { /* Audio not available */ }
   }
 
-  async function loadCallbacks() {
+  const loadCallbacks = useCallback(async () => {
     try {
       const res = await fetch("/api/callback");
       const data = await res.json();
-      setCallbacks(data.callbacks ?? []);
+      const all: Callback[] = data.callbacks ?? [];
+      setCallbacks(all.filter((c) => c.location === location));
     } catch {
       console.error("Terugbelafspraken laden mislukt");
     } finally {
       setLoading(false);
     }
-  }
+  }, [location]);
 
   useEffect(() => {
     loadCallbacks();
-  }, []);
+  }, [loadCallbacks]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -147,7 +152,6 @@ export default function CallbackList() {
     setEditPhone(cb.phone);
     setEditDateTime(toLocalDateTimeValue(cb.dateTime));
     setEditNote(cb.note);
-    setEditLocation(cb.location);
   }
 
   async function handleEditSave(id: string) {
@@ -162,7 +166,6 @@ export default function CallbackList() {
           phone: editPhone.trim(),
           dateTime: new Date(editDateTime).toISOString(),
           note: editNote.trim(),
-          location: editLocation,
         }),
       });
       setEditingId(null);
@@ -215,12 +218,6 @@ export default function CallbackList() {
   const open = callbacks.filter((c) => !c.done);
   const done = callbacks.filter((c) => c.done);
 
-  // Group open callbacks by location
-  const groupedByLocation = LOCATION_OPTIONS.map((loc) => ({
-    ...loc,
-    items: open.filter((c) => c.location === loc.id),
-  })).filter((g) => g.items.length > 0);
-
   function renderCallbackItem(cb: Callback, isDone: boolean) {
     if (editingId === cb.id) {
       return (
@@ -239,14 +236,6 @@ export default function CallbackList() {
             <div className="form-group">
               <label className="form-label">Datum/tijd</label>
               <input type="datetime-local" className="form-input" value={editDateTime} onChange={(e) => setEditDateTime(e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Vestiging</label>
-              <select className="form-select" value={editLocation} onChange={(e) => setEditLocation(e.target.value as LocationId)}>
-                {LOCATION_OPTIONS.map((loc) => (
-                  <option key={loc.id} value={loc.id}>{loc.label}</option>
-                ))}
-              </select>
             </div>
           </div>
           <div className="form-group">
@@ -298,12 +287,15 @@ export default function CallbackList() {
   }
 
   return (
-    <div className="card">
+    <div
+      className="card location-todo-card"
+      style={{ borderLeftColor: meta.color }}
+    >
       <div className="card__header">
         <svg className="card__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
         </svg>
-        <h2 className="card__title">Terugbelafspraken</h2>
+        <h2 className="card__title">{meta.label}</h2>
         <span className="card__badge">{open.length} openstaand</span>
       </div>
 
@@ -322,17 +314,7 @@ export default function CallbackList() {
           </div>
         )}
 
-        {/* Open callbacks grouped by region */}
-        {!loading && groupedByLocation.map((group) => (
-          <div key={group.id} className="region-section">
-            <div className="region-section__header">
-              <div className="region-section__dot" style={{ background: group.color }} />
-              <span className="region-section__label">{group.label}</span>
-              <span className="region-section__count">{group.items.length}</span>
-            </div>
-            {group.items.map((cb) => renderCallbackItem(cb, false))}
-          </div>
-        ))}
+        {!loading && open.map((cb) => renderCallbackItem(cb, false))}
 
         {/* Done section */}
         {!loading && done.length > 0 && (
@@ -380,18 +362,6 @@ export default function CallbackList() {
                 onChange={(e) => setDateTime(e.target.value)}
                 required
               />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Vestiging *</label>
-              <select
-                className="form-select"
-                value={location}
-                onChange={(e) => setLocation(e.target.value as LocationId)}
-              >
-                {LOCATION_OPTIONS.map((loc) => (
-                  <option key={loc.id} value={loc.id}>{loc.label}</option>
-                ))}
-              </select>
             </div>
           </div>
           <div className="form-group">

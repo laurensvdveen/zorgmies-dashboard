@@ -8,17 +8,28 @@ export default function Home() {
     <>
       <Header />
       <main className="dashboard">
-        {/* Row 1: Three location todo cards */}
+        {/* Row 1: Taken per vestiging */}
+        <h2 className="dashboard__section-title">Taken</h2>
         <div className="dashboard__row dashboard__row--todos">
           <LocationTodoCard location="regiobar" />
           <LocationTodoCard location="capelle" />
           <LocationTodoCard location="nissewaard" />
         </div>
 
-        {/* Row 2: Intakes + Belafspraken */}
-        <div className="dashboard__row dashboard__row--bottom">
-          <IntakeForm />
-          <CallbackList />
+        {/* Row 2: Nieuwe aanvragen per vestiging */}
+        <h2 className="dashboard__section-title">Nieuwe aanvragen</h2>
+        <div className="dashboard__row dashboard__row--intakes">
+          <IntakeForm location="regiobar" />
+          <IntakeForm location="capelle" />
+          <IntakeForm location="nissewaard" />
+        </div>
+
+        {/* Row 3: Terugbelafspraken per vestiging */}
+        <h2 className="dashboard__section-title">Terugbelafspraken</h2>
+        <div className="dashboard__row dashboard__row--callbacks">
+          <CallbackList location="regiobar" />
+          <CallbackList location="capelle" />
+          <CallbackList location="nissewaard" />
         </div>
       </main>
     </>

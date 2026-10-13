@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 type LocationId = "regiobar" | "capelle" | "nissewaard";
 type Urgency = "hoog" | "normaal" | "laag";
@@ -19,11 +19,11 @@ interface Intake {
   createdAt: string;
 }
 
-const LOCATION_OPTIONS: { id: LocationId; label: string; color: string }[] = [
-  { id: "regiobar", label: "Regio Bar", color: "var(--color-loc-regiobar)" },
-  { id: "capelle", label: "Capelle & PA", color: "var(--color-loc-capelle)" },
-  { id: "nissewaard", label: "Nissewaard & HV", color: "var(--color-loc-nissewaard)" },
-];
+const LOCATION_META: Record<LocationId, { label: string; color: string }> = {
+  regiobar: { label: "Regio Bar", color: "var(--color-loc-regiobar)" },
+  capelle: { label: "Capelle & PA", color: "var(--color-loc-capelle)" },
+  nissewaard: { label: "Nissewaard & HV", color: "var(--color-loc-nissewaard)" },
+};
 
 const URGENCY_OPTIONS: { id: Urgency; label: string }[] = [
   { id: "hoog", label: "Hoog" },
@@ -58,7 +58,11 @@ function formatDate(iso: string): string {
   });
 }
 
-export default function IntakeForm() {
+interface Props {
+  location: LocationId;
+}
+
+export default function IntakeForm({ location }: Props) {
   const [intakes, setIntakes] = useState<Intake[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -70,7 +74,6 @@ export default function IntakeForm() {
   const [address, setAddress] = useState("");
   const [careType, setCareType] = useState(CARE_TYPES[0]);
   const [urgency, setUrgency] = useState<Urgency>("normaal");
-  const [location, setLocation] = useState<LocationId>("regiobar");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -81,24 +84,26 @@ export default function IntakeForm() {
   const [editAddress, setEditAddress] = useState("");
   const [editCareType, setEditCareType] = useState("");
   const [editUrgency, setEditUrgency] = useState<Urgency>("normaal");
-  const [editLocation, setEditLocation] = useState<LocationId>("regiobar");
   const [editNotes, setEditNotes] = useState("");
 
-  async function loadIntakes() {
+  const meta = LOCATION_META[location];
+
+  const loadIntakes = useCallback(async () => {
     try {
       const res = await fetch("/api/intake");
       const data = await res.json();
-      setIntakes(data.intakes ?? []);
+      const all: Intake[] = data.intakes ?? [];
+      setIntakes(all.filter((i) => i.location === location));
     } catch {
       console.error("Aanvragen laden mislukt");
     } finally {
       setLoading(false);
     }
-  }
+  }, [location]);
 
   useEffect(() => {
     loadIntakes();
-  }, []);
+  }, [loadIntakes]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -142,7 +147,6 @@ export default function IntakeForm() {
     setEditAddress(intake.address);
     setEditCareType(intake.careType);
     setEditUrgency(intake.urgency);
-    setEditLocation(intake.location);
     setEditNotes(intake.notes);
   }
 
@@ -159,7 +163,6 @@ export default function IntakeForm() {
           address: editAddress.trim(),
           careType: editCareType,
           urgency: editUrgency,
-          location: editLocation,
           notes: editNotes.trim(),
         }),
       });
@@ -190,11 +193,7 @@ export default function IntakeForm() {
       ? intakes.filter((i) => i.status !== "afgerond")
       : intakes.filter((i) => i.status === filter);
 
-  // Group by location
-  const groupedByLocation = LOCATION_OPTIONS.map((loc) => ({
-    ...loc,
-    items: filtered.filter((i) => i.location === loc.id),
-  })).filter((g) => g.items.length > 0);
+  const openCount = intakes.filter((i) => i.status === "open").length;
 
   function renderIntakeItem(intake: Intake) {
     if (editingId === intake.id) {
@@ -231,14 +230,6 @@ export default function IntakeForm() {
                 ))}
               </select>
             </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Vestiging</label>
-            <select className="form-select" value={editLocation} onChange={(e) => setEditLocation(e.target.value as LocationId)}>
-              {LOCATION_OPTIONS.map((loc) => (
-                <option key={loc.id} value={loc.id}>{loc.label}</option>
-              ))}
-            </select>
           </div>
           <div className="form-group">
             <label className="form-label">Notities</label>
@@ -310,17 +301,18 @@ export default function IntakeForm() {
   }
 
   return (
-    <div className="card">
+    <div
+      className="card location-todo-card"
+      style={{ borderLeftColor: meta.color }}
+    >
       <div className="card__header">
         <svg className="card__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
           <circle cx="8.5" cy="7" r="4" />
           <path d="M20 8v6M23 11h-6" />
         </svg>
-        <h2 className="card__title">Nieuwe aanvragen</h2>
-        <span className="card__badge">
-          {intakes.filter((i) => i.status === "open").length} open
-        </span>
+        <h2 className="card__title">{meta.label}</h2>
+        <span className="card__badge">{openCount} open</span>
       </div>
 
       {/* Status filter */}
@@ -366,16 +358,7 @@ export default function IntakeForm() {
           </div>
         )}
 
-        {!loading && groupedByLocation.map((group) => (
-          <div key={group.id} className="region-section">
-            <div className="region-section__header">
-              <div className="region-section__dot" style={{ background: group.color }} />
-              <span className="region-section__label">{group.label}</span>
-              <span className="region-section__count">{group.items.length}</span>
-            </div>
-            {group.items.map((intake) => renderIntakeItem(intake))}
-          </div>
-        ))}
+        {!loading && filtered.map((intake) => renderIntakeItem(intake))}
       </div>
 
       {/* Add form */}
@@ -440,18 +423,6 @@ export default function IntakeForm() {
                 ))}
               </select>
             </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Vestiging *</label>
-            <select
-              className="form-select"
-              value={location}
-              onChange={(e) => setLocation(e.target.value as LocationId)}
-            >
-              {LOCATION_OPTIONS.map((loc) => (
-                <option key={loc.id} value={loc.id}>{loc.label}</option>
-              ))}
-            </select>
           </div>
           <div className="form-group">
             <label className="form-label">Notities</label>
