@@ -173,6 +173,15 @@ export default function IntakeForm({ location }: Props) {
     }
   }
 
+  async function handleDelete(id: string) {
+    try {
+      await fetch(`/api/intake?id=${id}`, { method: "DELETE" });
+      setIntakes((prev) => prev.filter((i) => i.id !== id));
+    } catch {
+      console.error("Aanvraag verwijderen mislukt");
+    }
+  }
+
   async function updateStatus(id: string, status: IntakeStatus) {
     try {
       await fetch("/api/intake", {
@@ -290,6 +299,15 @@ export default function IntakeForm({ location }: Props) {
           {intake.status !== "open" && (
             <button className="btn btn--secondary btn--sm" onClick={() => updateStatus(intake.id, "open")}>
               Heropenen
+            </button>
+          )}
+          {intake.status === "afgerond" && (
+            <button
+              className="btn btn--danger btn--sm"
+              onClick={() => handleDelete(intake.id)}
+              aria-label="Verwijder aanvraag"
+            >
+              &times;
             </button>
           )}
           <span className="text-sm text-muted" style={{ marginLeft: "auto" }}>

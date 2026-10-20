@@ -215,6 +215,15 @@ export default function CallbackList({ location }: Props) {
     }
   }
 
+  async function handleDelete(id: string) {
+    try {
+      await fetch(`/api/callback?id=${id}`, { method: "DELETE" });
+      setCallbacks((prev) => prev.filter((c) => c.id !== id));
+    } catch {
+      console.error("Terugbelafspraak verwijderen mislukt");
+    }
+  }
+
   const open = callbacks.filter((c) => !c.done);
   const done = callbacks.filter((c) => c.done);
 
@@ -273,6 +282,15 @@ export default function CallbackList({ location }: Props) {
                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
                 <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
+            </button>
+          )}
+          {isDone && (
+            <button
+              className="btn btn--danger btn--sm"
+              onClick={() => handleDelete(cb.id)}
+              aria-label="Verwijder terugbelafspraak"
+            >
+              &times;
             </button>
           )}
         </div>
