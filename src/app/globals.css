@@ -253,10 +253,13 @@ h1, h2, h3, h4, h5, h6 {
 .dashboard__section-title {
   font-family: var(--font-family);
   font-size: var(--font-size-xl);
-  font-weight: 700;
-  color: var(--color-text);
+  font-weight: 900;
+  color: #FFFFFF;
   margin: 0;
-  padding: 0;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-primary-darker);
+  border-radius: var(--radius-md);
+  letter-spacing: 0.5px;
 }
 
 /* --- Location Todo Card --- */
@@ -631,8 +634,17 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-sm) 0;
+  padding: var(--space-sm) var(--space-sm);
+  margin: 0 calc(-1 * var(--space-sm));
   border-bottom: 1px solid var(--color-border-light);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: rgba(149, 167, 213, 0.04);
+  transition: background var(--transition-fast);
+}
+
+.todo-item:hover {
+  background: rgba(149, 167, 213, 0.09);
 }
 
 .todo-item:last-child {
@@ -640,28 +652,34 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .todo-checkbox {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   border-radius: var(--radius-sm);
-  border: 2px solid var(--color-border);
+  border: 2.5px solid var(--color-primary-dark);
   cursor: pointer;
   flex-shrink: 0;
   appearance: none;
   -webkit-appearance: none;
   display: grid;
   place-content: center;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.todo-checkbox:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-lighter);
 }
 
 .todo-checkbox:checked {
   background: var(--color-success);
   border-color: var(--color-success);
+  box-shadow: 0 0 0 2px var(--color-success-light);
 }
 
 .todo-checkbox:checked::after {
   content: '✓';
   color: white;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -756,8 +774,17 @@ h1, h2, h3, h4, h5, h6 {
 
 /* --- Callback item --- */
 .callback-item {
-  padding: var(--space-sm) 0;
+  padding: var(--space-sm) var(--space-sm);
+  margin: 0 calc(-1 * var(--space-sm));
   border-bottom: 1px solid var(--color-border-light);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  background: rgba(233, 162, 59, 0.04);
+  transition: background var(--transition-fast);
+}
+
+.callback-item:hover {
+  background: rgba(233, 162, 59, 0.09);
 }
 
 .callback-item:last-child {
@@ -797,6 +824,23 @@ h1, h2, h3, h4, h5, h6 {
 
 .callback-item--done {
   opacity: 0.5;
+}
+
+/* Callback checkbox: warm amber style to differentiate from task checkboxes */
+.callback-item .todo-checkbox {
+  border-color: var(--color-warning);
+  border-radius: 50%;
+}
+
+.callback-item .todo-checkbox:hover {
+  border-color: var(--color-warning);
+  box-shadow: 0 0 0 3px var(--color-warning-light);
+}
+
+.callback-item .todo-checkbox:checked {
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  box-shadow: 0 0 0 2px var(--color-warning-light);
 }
 
 /* --- Calendar Grid (2-week view) --- */
